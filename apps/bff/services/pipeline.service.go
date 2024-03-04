@@ -1,19 +1,21 @@
 package services
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
 	. "github.com/hjfitz/gitlab-pipeline-profiling/types"
+	"github.com/redis/go-redis/v9"
 )
 
 type PipelineService struct {
 	Gitlab *GitlabService
+	Cache  *redis.Client
 }
 
-// TODO: we should probably store the response from gitlab
-// if there is a request, fetch them all from the store
-// defer an update using `since` in the API
 func (s *PipelineService) GetPipelinesAndJobs(projectId, branch string) []PipelineResponseDTO {
 	pipelines := s.Gitlab.GetPipelines(projectId, branch)
 
@@ -24,6 +26,21 @@ func (s *PipelineService) GetPipelinesAndJobs(projectId, branch string) []Pipeli
 	groupedPipelines := groupPipelinesByWeek(pipelines)
 
 	return groupedPipelines
+}
+
+func (s *PipelineService) GetCachedPipelinesAndJobs(projectId, branch string) []PipelineResponseDTO {
+	key := fmt.Sprintf("pipelines:%s:%s", projectId, branch)
+	ctx := context.Background()
+	cachedResponse, err := s.Cache.Get(ctx, key).Result()
+	if err != nil || cachedResponse == "" {
+		freshPipelines := s.GetPipelinesAndJobs(projectId, branch)
+		freshPipelinesJson, _ := json.Marshal(freshPipelines)
+		s.Cache.Set(ctx, key, freshPipelinesJson, (6 * time.Hour))
+		return freshPipelines
+	}
+	var pipelines []PipelineResponseDTO
+	json.Unmarshal([]byte(cachedResponse), &pipelines)
+	return pipelines
 }
 
 func (s *PipelineService) HydratePipelineJobs(projectId string, pipelines []Pipeline) []Pipeline {

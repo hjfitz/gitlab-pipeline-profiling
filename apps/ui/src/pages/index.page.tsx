@@ -34,10 +34,12 @@ function toFriendlyName(name: string) {
 const chartHeight = 200
 
 const Home = (props: IHomepageProps) => {
+
   const [selectedProject, setSelectedProject] = useState<ProjectResponseDTO>(props.projects[0])
   const [projects, setProjects] = useState<ProjectResponseDTO[]>(props.projects)
   const [pipelineData, setPipelineData] = useState<PipelineResponseDTO[]>([])
   const gitlabService = useRef(new GitlabService())
+
   useEffect(() => {
 	gitlabService.current.getProjects().then(resp => setProjects(resp))
   }, [])
@@ -53,6 +55,7 @@ const Home = (props: IHomepageProps) => {
 						setPipelineData(pipelineData)
 				})
   }, [selectedProject])
+
   return (
     <>
       <Head>
